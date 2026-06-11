@@ -1,0 +1,12 @@
+1
+6-11 12:12 
+installed rustc&cargo in wsl, run `language/try1.rs`.
+6-11 12:35
+a peek of language basic grammar format, goto hospital for sport treatment.
+6-11 18:00
+finally back to dorm. Start reading CS110L.
+
+6-11 19:22
+learnt basic grammar of rust. turn to ownership hardcore chain?
+ready to touch cargo && toolchain stuff.
+// commit and push
