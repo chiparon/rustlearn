@@ -19,19 +19,31 @@ pub(crate) struct AppState {
     pub(crate) sessions: Arc<Mutex<HashMap<String, Session>>>,
 }
 
-pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
-    let data_dir = std::env::current_dir()?.join("data");
-    fs::create_dir_all(&data_dir)?;
-    let db_path = data_dir.join("libadmin.db");
+pub fn build_router(db_path: PathBuf) -> rusqlite::Result<Router> {
     init_database(&db_path)?;
-    ensure_daily_backup(&db_path)?;
-
     let state = AppState {
         db_path,
         sessions: Arc::new(Mutex::new(HashMap::new())),
     };
+    Ok(router_with_state(state))
+}
 
-    let app = Router::new()
+pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+    let data_dir = std::env::current_dir()?.join("data");
+    fs::create_dir_all(&data_dir)?;
+    let db_path = data_dir.join("libadmin.db");
+    let app = build_router(db_path.clone())?;
+    ensure_daily_backup(&db_path)?;
+
+    let listener = bind_first_available().await?;
+    let addr = listener.local_addr()?;
+    println!("libadmin running at http://127.0.0.1:{}", addr.port());
+    axum::serve(listener, app).await?;
+    Ok(())
+}
+
+fn router_with_state(state: AppState) -> Router {
+    Router::new()
         .route("/", get(handlers::index))
         .route(
             "/login",
@@ -122,13 +134,7 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
             axum::routing::post(handlers::admin_resolve_exception),
         )
         .route("/admin/backup", axum::routing::post(handlers::admin_backup))
-        .with_state(state);
-
-    let listener = bind_first_available().await?;
-    let addr = listener.local_addr()?;
-    println!("libadmin running at http://127.0.0.1:{}", addr.port());
-    axum::serve(listener, app).await?;
-    Ok(())
+        .with_state(state)
 }
 
 async fn bind_first_available() -> std::io::Result<TcpListener> {

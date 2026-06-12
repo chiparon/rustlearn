@@ -1,5 +1,44 @@
 # Worklog
 
+## 2026-06-13 integration-tests-ci
+
+### Goal
+
+- Follow `review/claudereview-perspective.md` and prioritize HTTP-layer integration tests.
+- Make the Axum router constructible from tests without opening a network listener.
+- Add CI so the local Rust quality gate is reproducible on push and pull requests.
+
+### Completed Work
+
+- Extracted `build_router(db_path)` from `run()` and exported it from the library API.
+- Kept `run()` focused on data-directory setup, daily backup, listener binding, and serving.
+- Added `tests/http_auth.rs` integration tests using `tower::ServiceExt::oneshot`.
+- Covered real HTTP flows:
+  - unauthenticated `/admin` redirects to login;
+  - reader sessions receive `403 Forbidden` on admin pages;
+  - admin login reaches the dashboard;
+  - reader borrow, renew, and return work through form routes and update SQLite state.
+- Added a `tower` dev-dependency with the `util` feature for router testing.
+- Added `.github/workflows/libadmin-rust.yml` for `fmt`, `check`, `test`, and `clippy -D warnings` on `projects/libadmin` changes.
+
+### Verification
+
+Executed in WSL from `projects/libadmin`:
+
+```bash
+cargo fmt -- --check
+cargo check
+cargo test
+cargo clippy --all-targets --all-features -- -D warnings
+```
+
+Results:
+
+- Format check passed.
+- Compile check passed.
+- `cargo test` passed with 14 tests total: 10 unit/service tests and 4 HTTP integration tests.
+- Clippy passed with warnings denied.
+
 ## 2026-06-13 refactor-manusskilled
 
 ### Goal

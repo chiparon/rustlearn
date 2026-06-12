@@ -1,0 +1,39 @@
+name: libadmin-rust
+
+on:
+  push:
+    paths:
+      - "projects/libadmin/**"
+      - ".github/workflows/libadmin-rust.yml"
+  pull_request:
+    paths:
+      - "projects/libadmin/**"
+      - ".github/workflows/libadmin-rust.yml"
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: projects/libadmin
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Format
+        run: cargo fmt -- --check
+
+      - name: Check
+        run: cargo check
+
+      - name: Test
+        run: cargo test
+
+      - name: Clippy
+        run: cargo clippy --all-targets --all-features -- -D warnings

@@ -487,6 +487,7 @@ dependencies = [
  "serde",
  "sha2",
  "tokio",
+ "tower",
  "urlencoding",
  "uuid",
 ]

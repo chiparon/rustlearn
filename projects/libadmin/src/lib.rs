@@ -6,4 +6,4 @@ mod services;
 mod utils;
 mod web;
 
-pub use app::run;
+pub use app::{build_router, run};
