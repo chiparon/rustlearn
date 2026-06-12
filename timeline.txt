@@ -10,3 +10,24 @@ finally back to dorm. Start reading CS110L.
 learnt basic grammar of rust. turn to ownership hardcore chain?
 ready to touch cargo && toolchain stuff.
 // commit and push
+gofor supper and exercise.
+
+/*
+611night & 612morining: hustle for machine learning experiment check.
+612 noon: maintain my bicycles.
+*/
+
+6-12 15:46
+back to project
+decide to create a small project driven by vc.
+Using :
+`codex` agent
+`rust` language
+`wsl` env of rust compile
+`gpt5.5 xh` llm and reasoning effort.
+
+6-12 17:28
+successfully built the very first demo. Codex all stirred function inside main.rs.
+Search outstand rust repos, observe how they construct and design their files and codes.
+Onehand: Use manus to search popular rust repos and summarize their ideas and experiences.
+Otherhand: Use chatGPT to write a rust build guide skill.
