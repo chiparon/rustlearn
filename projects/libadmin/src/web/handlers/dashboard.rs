@@ -23,7 +23,7 @@ pub(crate) async fn reader_dashboard(
 ) -> Response {
     let session = match require_reader(&state, &headers) {
         Ok(session) => session,
-        Err(response) => return response,
+        Err(response) => return *response,
     };
     let conn = match open_conn(&state.db_path) {
         Ok(conn) => conn,
@@ -85,7 +85,7 @@ pub(crate) async fn admin_dashboard(
 ) -> Response {
     let session = match require_admin(&state, &headers) {
         Ok(session) => session,
-        Err(response) => return response,
+        Err(response) => return *response,
     };
     let conn = match open_conn(&state.db_path) {
         Ok(conn) => conn,
@@ -130,7 +130,7 @@ pub(crate) async fn books_page(
 ) -> Response {
     let session = match require_session(&state, &headers) {
         Ok(session) => session,
-        Err(response) => return response,
+        Err(response) => return *response,
     };
     let books = match list_books(&state.db_path) {
         Ok(books) => books,

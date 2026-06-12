@@ -1,5 +1,51 @@
 # Worklog
 
+## 2026-06-13 refactor-manusskilled
+
+### Goal
+
+- Continue from `review/claudereview.md` using `refactor-manusskilled` as the baseline.
+- Start with the highest-priority direction: move remaining admin CRUD SQL out of HTTP handlers.
+- Preserve behavior while improving service-layer consistency and test coverage.
+
+### Completed Work
+
+- Moved admin reader/book/admin/exception write operations from `web/handlers/admin.rs` into `services/mod.rs`.
+- Added service input structs:
+  - `ReaderInput`
+  - `BookInput`
+  - `AdminInput`
+  - `ExceptionInput`
+- Added service functions for admin CRUD paths:
+  - `create_reader` / `update_reader`
+  - `create_book` / `update_book`
+  - `create_admin` / `update_admin` / `delete_admin`
+  - `create_exception`
+- Kept `admin.rs` focused on authorization, form mapping, redirects, and rendering.
+- Fixed Clippy baseline issues encountered while running the quality gate:
+  - boxed auth error responses in `shared.rs`;
+  - collapsed nested `if` checks in services and logout handling.
+- Expanded service-layer tests from 6 to 10 total tests.
+
+### Verification
+
+Executed in WSL from `projects/libadmin`:
+
+```bash
+cargo fmt
+cargo fmt -- --check
+cargo check
+cargo test
+cargo clippy --all-targets --all-features -- -D warnings
+```
+
+Results:
+
+- Format check passed.
+- Compile check passed.
+- `cargo test` passed with 10 tests.
+- Clippy passed with warnings denied.
+
 ## 2026-06-12 refactor-manusskilled
 
 ### Goal

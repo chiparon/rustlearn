@@ -6,7 +6,6 @@ use axum::{
     response::{Html, IntoResponse, Response},
 };
 use chrono::Local;
-use rusqlite::params;
 
 use super::shared::*;
 use crate::{
@@ -21,10 +20,12 @@ use crate::{
         ReaderUpsertForm, RecordQuery,
     },
     services::{
-        complete_return, create_borrow, delete_book_if_available, delete_reader_if_clear,
-        renew_borrow, resolve_exception,
+        AdminInput, BookInput, ExceptionInput, ReaderInput, complete_return, create_admin,
+        create_book, create_borrow, create_exception, create_reader, delete_admin,
+        delete_book_if_available, delete_reader_if_clear, renew_borrow, resolve_exception,
+        update_admin, update_book, update_reader,
     },
-    utils::{db_err, hash_password, parse_date, today, valid_id},
+    utils::{db_err, parse_date, today},
     web::views::{
         esc, flash, html_table, layout, matches_status, matches_text, selected, status_label,
     },
@@ -56,7 +57,7 @@ pub(crate) async fn admin_readers(
 ) -> Response {
     let session = match require_admin(&state, &headers) {
         Ok(session) => session,
-        Err(response) => return response,
+        Err(response) => return *response,
     };
     let readers = match list_readers(&state.db_path) {
         Ok(readers) => readers,
@@ -120,36 +121,21 @@ pub(crate) async fn admin_add_reader(
     Form(form): Form<ReaderUpsertForm>,
 ) -> Response {
     if let Err(response) = require_admin(&state, &headers) {
-        return response;
+        return *response;
     }
-    let id = form.id.trim().to_uppercase();
-    if !valid_id(&id) {
-        return redirect_msg("/admin/readers", "读者 ID 格式错误");
-    }
-    let Some(password) = form.password.filter(|p| !p.is_empty()) else {
-        return redirect_msg("/admin/readers", "新增读者必须填写初始密码");
+    let input = ReaderInput {
+        id: &form.id,
+        name: &form.name,
+        password: form.password.as_deref(),
+        gender: &form.gender,
+        profession: &form.profession,
+        max_borrow: form.max_borrow,
+        borrow_days: form.borrow_days,
+        remark: form.remark.as_deref().unwrap_or_default(),
     };
-    let conn = match open_conn(&state.db_path) {
-        Ok(conn) => conn,
-        Err(err) => return redirect_msg("/admin/readers", &db_err(err)),
-    };
-    let result = conn.execute(
-        "INSERT INTO readers (id, name, gender, profession, max_borrow, borrow_days, password_hash, remark)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
-        params![
-            id,
-            form.name.trim(),
-            form.gender.trim(),
-            form.profession.trim(),
-            form.max_borrow,
-            form.borrow_days,
-            hash_password(&password),
-            form.remark.unwrap_or_default()
-        ],
-    );
-    match result {
-        Ok(_) => redirect_msg("/admin/readers", "读者已新增"),
-        Err(err) => redirect_msg("/admin/readers", &db_err(err)),
+    match create_reader(&state.db_path, input) {
+        Ok(()) => redirect_msg("/admin/readers", "读者已新增"),
+        Err(message) => redirect_msg("/admin/readers", &message),
     }
 }
 
@@ -159,47 +145,21 @@ pub(crate) async fn admin_update_reader(
     Form(form): Form<ReaderUpsertForm>,
 ) -> Response {
     if let Err(response) = require_admin(&state, &headers) {
-        return response;
+        return *response;
     }
-    let id = form.id.trim().to_uppercase();
-    let conn = match open_conn(&state.db_path) {
-        Ok(conn) => conn,
-        Err(err) => return redirect_msg("/admin/readers", &db_err(err)),
+    let input = ReaderInput {
+        id: &form.id,
+        name: &form.name,
+        password: form.password.as_deref(),
+        gender: &form.gender,
+        profession: &form.profession,
+        max_borrow: form.max_borrow,
+        borrow_days: form.borrow_days,
+        remark: form.remark.as_deref().unwrap_or_default(),
     };
-    let result = if let Some(password) = form.password.filter(|p| !p.is_empty()) {
-        conn.execute(
-            "UPDATE readers SET name = ?1, gender = ?2, profession = ?3, max_borrow = ?4,
-             borrow_days = ?5, password_hash = ?6, remark = ?7 WHERE id = ?8",
-            params![
-                form.name.trim(),
-                form.gender.trim(),
-                form.profession.trim(),
-                form.max_borrow,
-                form.borrow_days,
-                hash_password(&password),
-                form.remark.unwrap_or_default(),
-                id
-            ],
-        )
-    } else {
-        conn.execute(
-            "UPDATE readers SET name = ?1, gender = ?2, profession = ?3, max_borrow = ?4,
-             borrow_days = ?5, remark = ?6 WHERE id = ?7",
-            params![
-                form.name.trim(),
-                form.gender.trim(),
-                form.profession.trim(),
-                form.max_borrow,
-                form.borrow_days,
-                form.remark.unwrap_or_default(),
-                id
-            ],
-        )
-    };
-    match result {
-        Ok(0) => redirect_msg("/admin/readers", "未找到该读者"),
-        Ok(_) => redirect_msg("/admin/readers", "读者信息已更新"),
-        Err(err) => redirect_msg("/admin/readers", &db_err(err)),
+    match update_reader(&state.db_path, input) {
+        Ok(()) => redirect_msg("/admin/readers", "读者信息已更新"),
+        Err(message) => redirect_msg("/admin/readers", &message),
     }
 }
 
@@ -209,7 +169,7 @@ pub(crate) async fn admin_delete_reader(
     Form(form): Form<IdForm>,
 ) -> Response {
     if let Err(response) = require_admin(&state, &headers) {
-        return response;
+        return *response;
     }
     match delete_reader_if_clear(&state.db_path, &form.id.trim().to_uppercase()) {
         Ok(()) => redirect_msg("/admin/readers", "读者已删除"),
@@ -241,7 +201,7 @@ pub(crate) async fn admin_books(
 ) -> Response {
     let session = match require_admin(&state, &headers) {
         Ok(session) => session,
-        Err(response) => return response,
+        Err(response) => return *response,
     };
     let books = match list_books(&state.db_path) {
         Ok(books) => books,
@@ -307,30 +267,19 @@ pub(crate) async fn admin_add_book(
     Form(form): Form<BookUpsertForm>,
 ) -> Response {
     if let Err(response) = require_admin(&state, &headers) {
-        return response;
+        return *response;
     }
-    let id = form.id.trim().to_uppercase();
-    if !valid_id(&id) {
-        return redirect_msg("/admin/books", "书籍 ID 格式错误");
-    }
-    let conn = match open_conn(&state.db_path) {
-        Ok(conn) => conn,
-        Err(err) => return redirect_msg("/admin/books", &db_err(err)),
+    let input = BookInput {
+        id: &form.id,
+        title: &form.title,
+        category: &form.category,
+        keywords: &form.keywords,
+        status: None,
+        remark: form.remark.as_deref().unwrap_or_default(),
     };
-    let result = conn.execute(
-        "INSERT INTO books (id, title, category, keywords, status, remark)
-         VALUES (?1, ?2, ?3, ?4, 'available', ?5)",
-        params![
-            id,
-            form.title.trim(),
-            form.category.trim(),
-            form.keywords.trim(),
-            form.remark.unwrap_or_default()
-        ],
-    );
-    match result {
-        Ok(_) => redirect_msg("/admin/books", "图书已新增"),
-        Err(err) => redirect_msg("/admin/books", &db_err(err)),
+    match create_book(&state.db_path, input) {
+        Ok(()) => redirect_msg("/admin/books", "图书已新增"),
+        Err(message) => redirect_msg("/admin/books", &message),
     }
 }
 
@@ -340,27 +289,19 @@ pub(crate) async fn admin_update_book(
     Form(form): Form<BookUpsertForm>,
 ) -> Response {
     if let Err(response) = require_admin(&state, &headers) {
-        return response;
+        return *response;
     }
-    let conn = match open_conn(&state.db_path) {
-        Ok(conn) => conn,
-        Err(err) => return redirect_msg("/admin/books", &db_err(err)),
+    let input = BookInput {
+        id: &form.id,
+        title: &form.title,
+        category: &form.category,
+        keywords: &form.keywords,
+        status: form.status.as_deref(),
+        remark: form.remark.as_deref().unwrap_or_default(),
     };
-    let result = conn.execute(
-        "UPDATE books SET title = ?1, category = ?2, keywords = ?3, status = ?4, remark = ?5 WHERE id = ?6",
-        params![
-            form.title.trim(),
-            form.category.trim(),
-            form.keywords.trim(),
-            form.status.unwrap_or_else(|| "available".to_string()),
-            form.remark.unwrap_or_default(),
-            form.id.trim().to_uppercase()
-        ],
-    );
-    match result {
-        Ok(0) => redirect_msg("/admin/books", "未找到该图书"),
-        Ok(_) => redirect_msg("/admin/books", "图书信息已更新"),
-        Err(err) => redirect_msg("/admin/books", &db_err(err)),
+    match update_book(&state.db_path, input) {
+        Ok(()) => redirect_msg("/admin/books", "图书信息已更新"),
+        Err(message) => redirect_msg("/admin/books", &message),
     }
 }
 
@@ -370,7 +311,7 @@ pub(crate) async fn admin_delete_book(
     Form(form): Form<IdForm>,
 ) -> Response {
     if let Err(response) = require_admin(&state, &headers) {
-        return response;
+        return *response;
     }
     match delete_book_if_available(&state.db_path, &form.id.trim().to_uppercase()) {
         Ok(()) => redirect_msg("/admin/books", "图书已删除"),
@@ -402,7 +343,7 @@ pub(crate) async fn admin_admins(
 ) -> Response {
     let session = match require_admin(&state, &headers) {
         Ok(session) => session,
-        Err(response) => return response,
+        Err(response) => return *response,
     };
     let admins = match list_admins(&state.db_path) {
         Ok(admins) => admins,
@@ -462,32 +403,18 @@ pub(crate) async fn admin_add_admin(
     Form(form): Form<AdminUpsertForm>,
 ) -> Response {
     if let Err(response) = require_admin(&state, &headers) {
-        return response;
+        return *response;
     }
-    let id = form.id.trim().to_uppercase();
-    if !valid_id(&id) {
-        return redirect_msg("/admin/admins", "管理员 ID 格式错误");
-    }
-    let Some(password) = form.password.filter(|p| !p.is_empty()) else {
-        return redirect_msg("/admin/admins", "新增管理员必须填写初始密码");
+    let input = AdminInput {
+        id: &form.id,
+        name: &form.name,
+        password: form.password.as_deref(),
+        level: form.level,
+        remark: form.remark.as_deref().unwrap_or_default(),
     };
-    let conn = match open_conn(&state.db_path) {
-        Ok(conn) => conn,
-        Err(err) => return redirect_msg("/admin/admins", &db_err(err)),
-    };
-    let result = conn.execute(
-        "INSERT INTO admins (id, name, password_hash, level, remark) VALUES (?1, ?2, ?3, ?4, ?5)",
-        params![
-            id,
-            form.name.trim(),
-            hash_password(&password),
-            form.level,
-            form.remark.unwrap_or_default()
-        ],
-    );
-    match result {
-        Ok(_) => redirect_msg("/admin/admins", "管理员已新增"),
-        Err(err) => redirect_msg("/admin/admins", &db_err(err)),
+    match create_admin(&state.db_path, input) {
+        Ok(()) => redirect_msg("/admin/admins", "管理员已新增"),
+        Err(message) => redirect_msg("/admin/admins", &message),
     }
 }
 
@@ -497,39 +424,18 @@ pub(crate) async fn admin_update_admin(
     Form(form): Form<AdminUpsertForm>,
 ) -> Response {
     if let Err(response) = require_admin(&state, &headers) {
-        return response;
+        return *response;
     }
-    let id = form.id.trim().to_uppercase();
-    let conn = match open_conn(&state.db_path) {
-        Ok(conn) => conn,
-        Err(err) => return redirect_msg("/admin/admins", &db_err(err)),
+    let input = AdminInput {
+        id: &form.id,
+        name: &form.name,
+        password: form.password.as_deref(),
+        level: form.level,
+        remark: form.remark.as_deref().unwrap_or_default(),
     };
-    let result = if let Some(password) = form.password.filter(|p| !p.is_empty()) {
-        conn.execute(
-            "UPDATE admins SET name = ?1, password_hash = ?2, level = ?3, remark = ?4 WHERE id = ?5",
-            params![
-                form.name.trim(),
-                hash_password(&password),
-                form.level,
-                form.remark.unwrap_or_default(),
-                id
-            ],
-        )
-    } else {
-        conn.execute(
-            "UPDATE admins SET name = ?1, level = ?2, remark = ?3 WHERE id = ?4",
-            params![
-                form.name.trim(),
-                form.level,
-                form.remark.unwrap_or_default(),
-                id
-            ],
-        )
-    };
-    match result {
-        Ok(0) => redirect_msg("/admin/admins", "未找到该管理员"),
-        Ok(_) => redirect_msg("/admin/admins", "管理员信息已更新"),
-        Err(err) => redirect_msg("/admin/admins", &db_err(err)),
+    match update_admin(&state.db_path, input) {
+        Ok(()) => redirect_msg("/admin/admins", "管理员信息已更新"),
+        Err(message) => redirect_msg("/admin/admins", &message),
     }
 }
 
@@ -540,23 +446,11 @@ pub(crate) async fn admin_delete_admin(
 ) -> Response {
     let session = match require_admin(&state, &headers) {
         Ok(session) => session,
-        Err(response) => return response,
+        Err(response) => return *response,
     };
-    let id = form.id.trim().to_uppercase();
-    if id == "A001" {
-        return redirect_msg("/admin/admins", "默认最高权限管理员不可删除");
-    }
-    if id == session.user_id {
-        return redirect_msg("/admin/admins", "不能删除当前登录账号");
-    }
-    let conn = match open_conn(&state.db_path) {
-        Ok(conn) => conn,
-        Err(err) => return redirect_msg("/admin/admins", &db_err(err)),
-    };
-    match conn.execute("DELETE FROM admins WHERE id = ?1", params![id]) {
-        Ok(0) => redirect_msg("/admin/admins", "未找到该管理员"),
-        Ok(_) => redirect_msg("/admin/admins", "管理员已删除"),
-        Err(err) => redirect_msg("/admin/admins", &db_err(err)),
+    match delete_admin(&state.db_path, &form.id, &session.user_id) {
+        Ok(()) => redirect_msg("/admin/admins", "管理员已删除"),
+        Err(message) => redirect_msg("/admin/admins", &message),
     }
 }
 
@@ -567,7 +461,7 @@ pub(crate) async fn admin_records(
 ) -> Response {
     let session = match require_admin(&state, &headers) {
         Ok(session) => session,
-        Err(response) => return response,
+        Err(response) => return *response,
     };
     let active = match list_active_borrows(&state.db_path, None) {
         Ok(items) => items,
@@ -681,7 +575,7 @@ pub(crate) async fn admin_borrow(
     Form(form): Form<BorrowForm>,
 ) -> Response {
     if let Err(response) = require_admin(&state, &headers) {
-        return response;
+        return *response;
     }
     let Some(reader_id) = form.reader_id.as_deref() else {
         return redirect_msg("/admin/records", "管理员办理借书必须填写读者 ID");
@@ -703,7 +597,7 @@ pub(crate) async fn admin_return(
     Form(form): Form<BorrowIdForm>,
 ) -> Response {
     if let Err(response) = require_admin(&state, &headers) {
-        return response;
+        return *response;
     }
     match complete_return(&state.db_path, None, form.borrow_id) {
         Ok(()) => redirect_msg("/admin/records", "归还成功"),
@@ -717,7 +611,7 @@ pub(crate) async fn admin_renew(
     Form(form): Form<BorrowIdForm>,
 ) -> Response {
     if let Err(response) = require_admin(&state, &headers) {
-        return response;
+        return *response;
     }
     match renew_borrow(&state.db_path, None, form.borrow_id) {
         Ok(()) => redirect_msg("/admin/records", "续借成功"),
@@ -732,7 +626,7 @@ pub(crate) async fn admin_exceptions(
 ) -> Response {
     let session = match require_admin(&state, &headers) {
         Ok(session) => session,
-        Err(response) => return response,
+        Err(response) => return *response,
     };
     let exceptions = match list_exceptions(&state.db_path, None) {
         Ok(items) => items,
@@ -827,35 +721,20 @@ pub(crate) async fn admin_add_exception(
     Form(form): Form<ExceptionAddForm>,
 ) -> Response {
     if let Err(response) = require_admin(&state, &headers) {
-        return response;
+        return *response;
     }
-    let borrow_id = form
-        .borrow_id
-        .as_deref()
-        .map(str::trim)
-        .filter(|s| !s.is_empty())
-        .and_then(|s| s.parse::<i64>().ok());
-    let conn = match open_conn(&state.db_path) {
-        Ok(conn) => conn,
-        Err(err) => return redirect_msg("/admin/exceptions", &db_err(err)),
+    let input = ExceptionInput {
+        exception_type: &form.exception_type,
+        amount: form.amount,
+        status: &form.status,
+        reader_id: &form.reader_id,
+        book_id: &form.book_id,
+        borrow_id: form.borrow_id.as_deref(),
+        remark: form.remark.as_deref().unwrap_or_default(),
     };
-    let result = conn.execute(
-        "INSERT INTO exceptions (exception_type, amount, status, process_date, reader_id, book_id, borrow_id, remark)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
-        params![
-            form.exception_type,
-            form.amount,
-            form.status,
-            today().to_string(),
-            form.reader_id.trim().to_uppercase(),
-            form.book_id.trim().to_uppercase(),
-            borrow_id,
-            form.remark.unwrap_or_default()
-        ],
-    );
-    match result {
-        Ok(_) => redirect_msg("/admin/exceptions", "异常记录已保存"),
-        Err(err) => redirect_msg("/admin/exceptions", &db_err(err)),
+    match create_exception(&state.db_path, input) {
+        Ok(()) => redirect_msg("/admin/exceptions", "异常记录已保存"),
+        Err(message) => redirect_msg("/admin/exceptions", &message),
     }
 }
 
@@ -865,7 +744,7 @@ pub(crate) async fn admin_resolve_exception(
     Form(form): Form<ExceptionResolveForm>,
 ) -> Response {
     if let Err(response) = require_admin(&state, &headers) {
-        return response;
+        return *response;
     }
     match resolve_exception(&state.db_path, form.id) {
         Ok(()) => redirect_msg("/admin/exceptions", "异常已标记处理完成"),
@@ -875,7 +754,7 @@ pub(crate) async fn admin_resolve_exception(
 
 pub(crate) async fn admin_backup(State(state): State<AppState>, headers: HeaderMap) -> Response {
     if let Err(response) = require_admin(&state, &headers) {
-        return response;
+        return *response;
     }
     let backup_dir = state
         .db_path

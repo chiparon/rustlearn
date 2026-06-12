@@ -9,6 +9,9 @@ use crate::{
     models::Session,
     web::views::{esc, layout},
 };
+
+pub(super) type AuthResult = Result<Session, Box<Response>>;
+
 pub(super) fn session_from_headers(state: &AppState, headers: &HeaderMap) -> Option<Session> {
     let cookie = headers.get(header::COOKIE)?.to_str().ok()?;
     let token = cookie.split(';').find_map(|part| {
@@ -18,25 +21,25 @@ pub(super) fn session_from_headers(state: &AppState, headers: &HeaderMap) -> Opt
     state.sessions.lock().ok()?.get(&token).cloned()
 }
 
-pub(super) fn require_session(state: &AppState, headers: &HeaderMap) -> Result<Session, Response> {
-    session_from_headers(state, headers).ok_or_else(|| redirect_msg("/login", "请先登录"))
+pub(super) fn require_session(state: &AppState, headers: &HeaderMap) -> AuthResult {
+    session_from_headers(state, headers).ok_or_else(|| Box::new(redirect_msg("/login", "请先登录")))
 }
 
-pub(super) fn require_reader(state: &AppState, headers: &HeaderMap) -> Result<Session, Response> {
+pub(super) fn require_reader(state: &AppState, headers: &HeaderMap) -> AuthResult {
     let session = require_session(state, headers)?;
     if session.role == "reader" {
         Ok(session)
     } else {
-        Err(forbidden("当前账号不是读者账号"))
+        Err(Box::new(forbidden("当前账号不是读者账号")))
     }
 }
 
-pub(super) fn require_admin(state: &AppState, headers: &HeaderMap) -> Result<Session, Response> {
+pub(super) fn require_admin(state: &AppState, headers: &HeaderMap) -> AuthResult {
     let session = require_session(state, headers)?;
     if session.role == "admin" {
         Ok(session)
     } else {
-        Err(forbidden("权限不足，无法进入管理员功能"))
+        Err(Box::new(forbidden("权限不足，无法进入管理员功能")))
     }
 }
 

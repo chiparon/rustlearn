@@ -21,7 +21,7 @@ pub(crate) async fn reader_profile(
 ) -> Response {
     let session = match require_reader(&state, &headers) {
         Ok(session) => session,
-        Err(response) => return response,
+        Err(response) => return *response,
     };
     let reader = match get_reader(&state.db_path, &session.user_id) {
         Ok(Some(reader)) => reader,
@@ -69,7 +69,7 @@ pub(crate) async fn reader_profile_submit(
 ) -> Response {
     let session = match require_reader(&state, &headers) {
         Ok(session) => session,
-        Err(response) => return response,
+        Err(response) => return *response,
     };
     let conn = match open_conn(&state.db_path) {
         Ok(conn) => conn,
@@ -94,7 +94,7 @@ pub(crate) async fn reader_profile_submit(
 pub(crate) async fn reader_cancel(State(state): State<AppState>, headers: HeaderMap) -> Response {
     let session = match require_reader(&state, &headers) {
         Ok(session) => session,
-        Err(response) => return response,
+        Err(response) => return *response,
     };
     match delete_reader_if_clear(&state.db_path, &session.user_id) {
         Ok(()) => redirect_with_cookie(
@@ -112,7 +112,7 @@ pub(crate) async fn reader_borrow(
 ) -> Response {
     let session = match require_reader(&state, &headers) {
         Ok(session) => session,
-        Err(response) => return response,
+        Err(response) => return *response,
     };
     match create_borrow(
         &state.db_path,
@@ -132,7 +132,7 @@ pub(crate) async fn reader_loans(
 ) -> Response {
     let session = match require_reader(&state, &headers) {
         Ok(session) => session,
-        Err(response) => return response,
+        Err(response) => return *response,
     };
     let active = match list_active_borrows(&state.db_path, Some(&session.user_id)) {
         Ok(items) => items,
@@ -220,7 +220,7 @@ pub(crate) async fn reader_return(
 ) -> Response {
     let session = match require_reader(&state, &headers) {
         Ok(session) => session,
-        Err(response) => return response,
+        Err(response) => return *response,
     };
     match complete_return(&state.db_path, Some(&session.user_id), form.borrow_id) {
         Ok(()) => redirect_msg("/reader/loans", "归还成功"),
@@ -235,7 +235,7 @@ pub(crate) async fn reader_renew(
 ) -> Response {
     let session = match require_reader(&state, &headers) {
         Ok(session) => session,
-        Err(response) => return response,
+        Err(response) => return *response,
     };
     match renew_borrow(&state.db_path, Some(&session.user_id), form.borrow_id) {
         Ok(()) => redirect_msg("/reader/loans", "续借成功"),
@@ -250,7 +250,7 @@ pub(crate) async fn reader_exceptions(
 ) -> Response {
     let session = match require_reader(&state, &headers) {
         Ok(session) => session,
-        Err(response) => return response,
+        Err(response) => return *response,
     };
     let exceptions = match list_exceptions(&state.db_path, Some(&session.user_id)) {
         Ok(items) => items,
@@ -299,7 +299,7 @@ pub(crate) async fn reader_report_exception(
 ) -> Response {
     let session = match require_reader(&state, &headers) {
         Ok(session) => session,
-        Err(response) => return response,
+        Err(response) => return *response,
     };
     let conn = match open_conn(&state.db_path) {
         Ok(conn) => conn,

@@ -116,13 +116,13 @@ pub(crate) async fn login_submit(
 }
 
 pub(crate) async fn logout(State(state): State<AppState>, headers: HeaderMap) -> Response {
-    if let Some(cookie) = headers.get(header::COOKIE).and_then(|v| v.to_str().ok()) {
-        if let Some(token) = cookie.split(';').find_map(|part| {
+    if let Some(cookie) = headers.get(header::COOKIE).and_then(|v| v.to_str().ok())
+        && let Some(token) = cookie.split(';').find_map(|part| {
             let part = part.trim();
             part.strip_prefix("libadmin_session=").map(str::to_string)
-        }) {
-            let _ = state.sessions.lock().expect("session lock").remove(&token);
-        }
+        })
+    {
+        let _ = state.sessions.lock().expect("session lock").remove(&token);
     }
     redirect_with_cookie(
         "/login",
