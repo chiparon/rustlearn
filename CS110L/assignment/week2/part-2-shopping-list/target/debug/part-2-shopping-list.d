@@ -1,0 +1,1 @@
+/mnt/e/Eproject/rustlearn-my-work/CS110L/assignment/week2/part-2-shopping-list/target/debug/part-2-shopping-list: /mnt/e/Eproject/rustlearn-my-work/CS110L/assignment/week2/part-2-shopping-list/src/main.rs
