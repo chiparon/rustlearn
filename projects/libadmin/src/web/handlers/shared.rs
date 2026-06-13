@@ -6,6 +6,7 @@ use axum::{
 
 use crate::{
     app::AppState,
+    errors::LibError,
     models::Session,
     web::views::{esc, layout},
 };
@@ -58,6 +59,27 @@ fn forbidden(message: &str) -> Response {
 pub(super) fn redirect_msg(path: &str, message: &str) -> Response {
     let location = format!("{}?msg={}", path, urlencoding::encode(message));
     Redirect::to(&location).into_response()
+}
+
+pub(super) fn service_error(back_path: &str, err: &LibError) -> Response {
+    let status = match err {
+        LibError::InvalidInput(_) | LibError::RuleViolation(_) => StatusCode::BAD_REQUEST,
+        LibError::NotFound(_) => StatusCode::NOT_FOUND,
+        LibError::Db(_) => StatusCode::INTERNAL_SERVER_ERROR,
+    };
+    (
+        status,
+        Html(layout(
+            "操作失败",
+            None,
+            format!(
+                r#"<h1>操作失败</h1><p>{}</p><a class="button secondary" href="{}">返回</a>"#,
+                esc(&err.user_message()),
+                esc(back_path)
+            ),
+        )),
+    )
+        .into_response()
 }
 
 pub(super) fn redirect_to(path: &str) -> Response {

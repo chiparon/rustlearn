@@ -1,5 +1,49 @@
 # Worklog
 
+## 2026-06-13 typed-errors
+
+### Goal
+
+- Follow `review/definition-of-done.md` and close the highest-priority B-line gap.
+- Replace service-layer `Result<(), String>` errors with typed Rust errors using `thiserror`.
+- Preserve existing successful workflows while allowing handlers to map service failures to HTTP status codes.
+
+### Completed Work
+
+- Added `thiserror` and a new `errors` module.
+- Introduced `LibError` variants:
+  - `InvalidInput`
+  - `NotFound`
+  - `RuleViolation`
+  - `Db`
+- Replaced service-layer string errors with `LibResult<T>`.
+- Kept database errors as `LibError::Db(#[from] rusqlite::Error)` instead of formatting them immediately into strings.
+- Mapped service errors in HTTP handlers:
+  - `InvalidInput` / `RuleViolation` -> `400 Bad Request`
+  - `NotFound` -> `404 Not Found`
+  - `Db` -> `500 Internal Server Error`
+- Updated service tests to assert error variants, and added coverage for `InvalidInput` and `NotFound`.
+- Added an HTTP integration test that verifies a missing book borrow request returns `404`.
+- Updated README with transaction/concurrency notes and explicit security limitations for password hashing and in-memory sessions.
+
+### Verification
+
+Executed in WSL from `projects/libadmin`:
+
+```bash
+cargo fmt -- --check
+cargo check
+cargo test
+cargo clippy --all-targets --all-features -- -D warnings
+```
+
+Results:
+
+- Format check passed.
+- Compile check passed.
+- `cargo test` passed with 16 tests total: 11 unit/service tests and 5 HTTP integration tests.
+- Clippy passed with warnings denied.
+
 ## 2026-06-13 integration-tests-ci
 
 ### Goal

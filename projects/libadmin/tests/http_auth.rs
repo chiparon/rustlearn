@@ -202,3 +202,22 @@ async fn reader_can_borrow_renew_and_return_through_http() {
     assert_eq!(final_status, "available");
     assert_eq!(return_count, 1);
 }
+
+#[tokio::test]
+async fn service_errors_map_to_http_status_codes() {
+    let app = TestApp::new();
+    let cookie = app.login("reader", "R001", "reader001").await;
+
+    let response = app
+        .post_form(
+            "/reader/borrow",
+            "book_id=B9999&remark=missing",
+            Some(&cookie),
+        )
+        .await;
+    let status = response.status();
+    let body = body_text(response).await;
+
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    assert!(body.contains("书籍不存在"));
+}

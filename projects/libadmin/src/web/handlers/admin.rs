@@ -135,7 +135,7 @@ pub(crate) async fn admin_add_reader(
     };
     match create_reader(&state.db_path, input) {
         Ok(()) => redirect_msg("/admin/readers", "读者已新增"),
-        Err(message) => redirect_msg("/admin/readers", &message),
+        Err(err) => service_error("/admin/readers", &err),
     }
 }
 
@@ -159,7 +159,7 @@ pub(crate) async fn admin_update_reader(
     };
     match update_reader(&state.db_path, input) {
         Ok(()) => redirect_msg("/admin/readers", "读者信息已更新"),
-        Err(message) => redirect_msg("/admin/readers", &message),
+        Err(err) => service_error("/admin/readers", &err),
     }
 }
 
@@ -173,7 +173,7 @@ pub(crate) async fn admin_delete_reader(
     }
     match delete_reader_if_clear(&state.db_path, &form.id.trim().to_uppercase()) {
         Ok(()) => redirect_msg("/admin/readers", "读者已删除"),
-        Err(message) => redirect_msg("/admin/readers", &message),
+        Err(err) => service_error("/admin/readers", &err),
     }
 }
 
@@ -279,7 +279,7 @@ pub(crate) async fn admin_add_book(
     };
     match create_book(&state.db_path, input) {
         Ok(()) => redirect_msg("/admin/books", "图书已新增"),
-        Err(message) => redirect_msg("/admin/books", &message),
+        Err(err) => service_error("/admin/books", &err),
     }
 }
 
@@ -301,7 +301,7 @@ pub(crate) async fn admin_update_book(
     };
     match update_book(&state.db_path, input) {
         Ok(()) => redirect_msg("/admin/books", "图书信息已更新"),
-        Err(message) => redirect_msg("/admin/books", &message),
+        Err(err) => service_error("/admin/books", &err),
     }
 }
 
@@ -315,7 +315,7 @@ pub(crate) async fn admin_delete_book(
     }
     match delete_book_if_available(&state.db_path, &form.id.trim().to_uppercase()) {
         Ok(()) => redirect_msg("/admin/books", "图书已删除"),
-        Err(message) => redirect_msg("/admin/books", &message),
+        Err(err) => service_error("/admin/books", &err),
     }
 }
 
@@ -414,7 +414,7 @@ pub(crate) async fn admin_add_admin(
     };
     match create_admin(&state.db_path, input) {
         Ok(()) => redirect_msg("/admin/admins", "管理员已新增"),
-        Err(message) => redirect_msg("/admin/admins", &message),
+        Err(err) => service_error("/admin/admins", &err),
     }
 }
 
@@ -435,7 +435,7 @@ pub(crate) async fn admin_update_admin(
     };
     match update_admin(&state.db_path, input) {
         Ok(()) => redirect_msg("/admin/admins", "管理员信息已更新"),
-        Err(message) => redirect_msg("/admin/admins", &message),
+        Err(err) => service_error("/admin/admins", &err),
     }
 }
 
@@ -450,7 +450,7 @@ pub(crate) async fn admin_delete_admin(
     };
     match delete_admin(&state.db_path, &form.id, &session.user_id) {
         Ok(()) => redirect_msg("/admin/admins", "管理员已删除"),
-        Err(message) => redirect_msg("/admin/admins", &message),
+        Err(err) => service_error("/admin/admins", &err),
     }
 }
 
@@ -587,7 +587,7 @@ pub(crate) async fn admin_borrow(
         form.remark.unwrap_or_default().trim(),
     ) {
         Ok(()) => redirect_msg("/admin/records", "借书办理成功"),
-        Err(message) => redirect_msg("/admin/records", &message),
+        Err(err) => service_error("/admin/records", &err),
     }
 }
 
@@ -601,7 +601,7 @@ pub(crate) async fn admin_return(
     }
     match complete_return(&state.db_path, None, form.borrow_id) {
         Ok(()) => redirect_msg("/admin/records", "归还成功"),
-        Err(message) => redirect_msg("/admin/records", &message),
+        Err(err) => service_error("/admin/records", &err),
     }
 }
 
@@ -615,7 +615,7 @@ pub(crate) async fn admin_renew(
     }
     match renew_borrow(&state.db_path, None, form.borrow_id) {
         Ok(()) => redirect_msg("/admin/records", "续借成功"),
-        Err(message) => redirect_msg("/admin/records", &message),
+        Err(err) => service_error("/admin/records", &err),
     }
 }
 
@@ -734,7 +734,7 @@ pub(crate) async fn admin_add_exception(
     };
     match create_exception(&state.db_path, input) {
         Ok(()) => redirect_msg("/admin/exceptions", "异常记录已保存"),
-        Err(message) => redirect_msg("/admin/exceptions", &message),
+        Err(err) => service_error("/admin/exceptions", &err),
     }
 }
 
@@ -748,7 +748,7 @@ pub(crate) async fn admin_resolve_exception(
     }
     match resolve_exception(&state.db_path, form.id) {
         Ok(()) => redirect_msg("/admin/exceptions", "异常已标记处理完成"),
-        Err(message) => redirect_msg("/admin/exceptions", &message),
+        Err(err) => service_error("/admin/exceptions", &err),
     }
 }
 

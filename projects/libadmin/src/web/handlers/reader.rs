@@ -101,7 +101,7 @@ pub(crate) async fn reader_cancel(State(state): State<AppState>, headers: Header
             "/login?msg=%E8%B4%A6%E5%8F%B7%E5%B7%B2%E6%B3%A8%E9%94%80",
             "libadmin_session=deleted; Path=/; HttpOnly; SameSite=Lax; Max-Age=0".to_string(),
         ),
-        Err(message) => redirect_msg("/reader/profile", &message),
+        Err(err) => service_error("/reader/profile", &err),
     }
 }
 
@@ -121,7 +121,7 @@ pub(crate) async fn reader_borrow(
         form.remark.unwrap_or_default().trim(),
     ) {
         Ok(()) => redirect_msg("/reader/loans", "借阅成功"),
-        Err(message) => redirect_msg("/books", &message),
+        Err(err) => service_error("/books", &err),
     }
 }
 
@@ -224,7 +224,7 @@ pub(crate) async fn reader_return(
     };
     match complete_return(&state.db_path, Some(&session.user_id), form.borrow_id) {
         Ok(()) => redirect_msg("/reader/loans", "归还成功"),
-        Err(message) => redirect_msg("/reader/loans", &message),
+        Err(err) => service_error("/reader/loans", &err),
     }
 }
 
@@ -239,7 +239,7 @@ pub(crate) async fn reader_renew(
     };
     match renew_borrow(&state.db_path, Some(&session.user_id), form.borrow_id) {
         Ok(()) => redirect_msg("/reader/loans", "续借成功"),
-        Err(message) => redirect_msg("/reader/loans", &message),
+        Err(err) => service_error("/reader/loans", &err),
     }
 }
 

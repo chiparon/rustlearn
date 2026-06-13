@@ -53,8 +53,17 @@ http://<WSL_IP>:8088
 - SQLite 自动建表、初始化 220 本图书、80 名读者、4 个管理员和测试借还/异常数据
 - 每日自动备份和管理员手动备份，备份目录为 `data/backups`
 
+## 一致性说明
+
+借书流程在同一个 SQLite 事务内完成“校验读者借书上限、校验图书状态、插入借阅记录、更新图书状态”。因此即使并发请求尝试借同一本书，第二个请求也会在事务内重新看到图书状态变化并被业务规则拒绝。
+
+## 已知限制
+
+- 密码当前使用 `SHA-256 + 固定前缀盐`，适合课程实验演示；生产系统应改为 `argon2` 或 `bcrypt` 这类慢哈希，并为每个用户使用独立盐。
+- 会话当前存放在进程内存 `HashMap` 中，进程重启后会失效；生产系统应增加过期机制或持久化 session。
+
 ## 验证
 
 ```powershell
-wsl.exe -- bash -lc 'cd /mnt/e/Eproject/rustlearn/projects/libadmin && cargo fmt --check && cargo check'
+wsl.exe -- bash -lc 'cd /mnt/e/Eproject/rustlearn/projects/libadmin && cargo fmt -- --check && cargo check && cargo test && cargo clippy --all-targets --all-features -- -D warnings'
 ```

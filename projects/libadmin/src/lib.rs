@@ -1,5 +1,6 @@
 mod app;
 mod db;
+mod errors;
 mod forms;
 mod models;
 mod services;

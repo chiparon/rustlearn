@@ -4,7 +4,8 @@ use chrono::Duration;
 use rusqlite::{OptionalExtension, params};
 
 use crate::db::open_conn;
-use crate::utils::{db_err, hash_password, parse_date, today, valid_id};
+use crate::errors::{LibError, LibResult};
+use crate::utils::{hash_password, parse_date, today, valid_id};
 
 pub(crate) struct ReaderInput<'a> {
     pub(crate) id: &'a str,
@@ -48,20 +49,20 @@ fn normalize_id(id: &str) -> String {
     id.trim().to_uppercase()
 }
 
-fn required_password<'a>(password: Option<&'a str>, message: &str) -> Result<&'a str, String> {
+fn required_password<'a>(password: Option<&'a str>, message: &str) -> LibResult<&'a str> {
     password
         .map(str::trim)
         .filter(|value| !value.is_empty())
-        .ok_or_else(|| message.to_string())
+        .ok_or_else(|| LibError::invalid_input(message))
 }
 
-pub(crate) fn create_reader(path: &Path, input: ReaderInput<'_>) -> Result<(), String> {
+pub(crate) fn create_reader(path: &Path, input: ReaderInput<'_>) -> LibResult<()> {
     let id = normalize_id(input.id);
     if !valid_id(&id) {
-        return Err("读者 ID 格式错误".to_string());
+        return Err(LibError::invalid_input("读者 ID 格式错误"));
     }
     let password = required_password(input.password, "新增读者必须填写初始密码")?;
-    let conn = open_conn(path).map_err(db_err)?;
+    let conn = open_conn(path)?;
     conn.execute(
         "INSERT INTO readers (id, name, gender, profession, max_borrow, borrow_days, password_hash, remark)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
@@ -76,16 +77,16 @@ pub(crate) fn create_reader(path: &Path, input: ReaderInput<'_>) -> Result<(), S
             input.remark
         ],
     )
-    .map_err(db_err)?;
+    ?;
     Ok(())
 }
 
-pub(crate) fn update_reader(path: &Path, input: ReaderInput<'_>) -> Result<(), String> {
+pub(crate) fn update_reader(path: &Path, input: ReaderInput<'_>) -> LibResult<()> {
     let id = normalize_id(input.id);
     if !valid_id(&id) {
-        return Err("读者 ID 格式错误".to_string());
+        return Err(LibError::invalid_input("读者 ID 格式错误"));
     }
-    let conn = open_conn(path).map_err(db_err)?;
+    let conn = open_conn(path)?;
     let changed = if let Some(password) = input.password.map(str::trim).filter(|p| !p.is_empty()) {
         conn.execute(
             "UPDATE readers SET name = ?1, gender = ?2, profession = ?3, max_borrow = ?4,
@@ -115,20 +116,19 @@ pub(crate) fn update_reader(path: &Path, input: ReaderInput<'_>) -> Result<(), S
                 id
             ],
         )
-    }
-    .map_err(db_err)?;
+    }?;
     if changed == 0 {
-        return Err("未找到该读者".to_string());
+        return Err(LibError::not_found("未找到该读者"));
     }
     Ok(())
 }
 
-pub(crate) fn create_book(path: &Path, input: BookInput<'_>) -> Result<(), String> {
+pub(crate) fn create_book(path: &Path, input: BookInput<'_>) -> LibResult<()> {
     let id = normalize_id(input.id);
     if !valid_id(&id) {
-        return Err("书籍 ID 格式错误".to_string());
+        return Err(LibError::invalid_input("书籍 ID 格式错误"));
     }
-    let conn = open_conn(path).map_err(db_err)?;
+    let conn = open_conn(path)?;
     conn.execute(
         "INSERT INTO books (id, title, category, keywords, status, remark)
          VALUES (?1, ?2, ?3, ?4, 'available', ?5)",
@@ -139,18 +139,17 @@ pub(crate) fn create_book(path: &Path, input: BookInput<'_>) -> Result<(), Strin
             input.keywords.trim(),
             input.remark
         ],
-    )
-    .map_err(db_err)?;
+    )?;
     Ok(())
 }
 
-pub(crate) fn update_book(path: &Path, input: BookInput<'_>) -> Result<(), String> {
+pub(crate) fn update_book(path: &Path, input: BookInput<'_>) -> LibResult<()> {
     let id = normalize_id(input.id);
     if !valid_id(&id) {
-        return Err("书籍 ID 格式错误".to_string());
+        return Err(LibError::invalid_input("书籍 ID 格式错误"));
     }
     let status = input.status.unwrap_or("available").trim();
-    let conn = open_conn(path).map_err(db_err)?;
+    let conn = open_conn(path)?;
     let changed = conn
         .execute(
             "UPDATE books SET title = ?1, category = ?2, keywords = ?3, status = ?4, remark = ?5 WHERE id = ?6",
@@ -163,20 +162,20 @@ pub(crate) fn update_book(path: &Path, input: BookInput<'_>) -> Result<(), Strin
                 id
             ],
         )
-        .map_err(db_err)?;
+        ?;
     if changed == 0 {
-        return Err("未找到该图书".to_string());
+        return Err(LibError::not_found("未找到该图书"));
     }
     Ok(())
 }
 
-pub(crate) fn create_admin(path: &Path, input: AdminInput<'_>) -> Result<(), String> {
+pub(crate) fn create_admin(path: &Path, input: AdminInput<'_>) -> LibResult<()> {
     let id = normalize_id(input.id);
     if !valid_id(&id) {
-        return Err("管理员 ID 格式错误".to_string());
+        return Err(LibError::invalid_input("管理员 ID 格式错误"));
     }
     let password = required_password(input.password, "新增管理员必须填写初始密码")?;
-    let conn = open_conn(path).map_err(db_err)?;
+    let conn = open_conn(path)?;
     conn.execute(
         "INSERT INTO admins (id, name, password_hash, level, remark) VALUES (?1, ?2, ?3, ?4, ?5)",
         params![
@@ -186,17 +185,16 @@ pub(crate) fn create_admin(path: &Path, input: AdminInput<'_>) -> Result<(), Str
             input.level,
             input.remark
         ],
-    )
-    .map_err(db_err)?;
+    )?;
     Ok(())
 }
 
-pub(crate) fn update_admin(path: &Path, input: AdminInput<'_>) -> Result<(), String> {
+pub(crate) fn update_admin(path: &Path, input: AdminInput<'_>) -> LibResult<()> {
     let id = normalize_id(input.id);
     if !valid_id(&id) {
-        return Err("管理员 ID 格式错误".to_string());
+        return Err(LibError::invalid_input("管理员 ID 格式错误"));
     }
-    let conn = open_conn(path).map_err(db_err)?;
+    let conn = open_conn(path)?;
     let changed = if let Some(password) = input.password.map(str::trim).filter(|p| !p.is_empty()) {
         conn.execute(
             "UPDATE admins SET name = ?1, password_hash = ?2, level = ?3, remark = ?4 WHERE id = ?5",
@@ -213,43 +211,36 @@ pub(crate) fn update_admin(path: &Path, input: AdminInput<'_>) -> Result<(), Str
             "UPDATE admins SET name = ?1, level = ?2, remark = ?3 WHERE id = ?4",
             params![input.name.trim(), input.level, input.remark, id],
         )
-    }
-    .map_err(db_err)?;
+    }?;
     if changed == 0 {
-        return Err("未找到该管理员".to_string());
+        return Err(LibError::not_found("未找到该管理员"));
     }
     Ok(())
 }
 
-pub(crate) fn delete_admin(
-    path: &Path,
-    admin_id: &str,
-    current_admin_id: &str,
-) -> Result<(), String> {
+pub(crate) fn delete_admin(path: &Path, admin_id: &str, current_admin_id: &str) -> LibResult<()> {
     let id = normalize_id(admin_id);
     if id == "A001" {
-        return Err("默认最高权限管理员不可删除".to_string());
+        return Err(LibError::rule_violation("默认最高权限管理员不可删除"));
     }
     if id == current_admin_id {
-        return Err("不能删除当前登录账号".to_string());
+        return Err(LibError::rule_violation("不能删除当前登录账号"));
     }
-    let conn = open_conn(path).map_err(db_err)?;
-    let changed = conn
-        .execute("DELETE FROM admins WHERE id = ?1", params![id])
-        .map_err(db_err)?;
+    let conn = open_conn(path)?;
+    let changed = conn.execute("DELETE FROM admins WHERE id = ?1", params![id])?;
     if changed == 0 {
-        return Err("未找到该管理员".to_string());
+        return Err(LibError::not_found("未找到该管理员"));
     }
     Ok(())
 }
 
-pub(crate) fn create_exception(path: &Path, input: ExceptionInput<'_>) -> Result<(), String> {
+pub(crate) fn create_exception(path: &Path, input: ExceptionInput<'_>) -> LibResult<()> {
     let borrow_id = input
         .borrow_id
         .map(str::trim)
         .filter(|s| !s.is_empty())
         .and_then(|s| s.parse::<i64>().ok());
-    let conn = open_conn(path).map_err(db_err)?;
+    let conn = open_conn(path)?;
     conn.execute(
         "INSERT INTO exceptions (exception_type, amount, status, process_date, reader_id, book_id, borrow_id, remark)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
@@ -264,7 +255,7 @@ pub(crate) fn create_exception(path: &Path, input: ExceptionInput<'_>) -> Result
             input.remark
         ],
     )
-    .map_err(db_err)?;
+    ?;
     Ok(())
 }
 
@@ -273,30 +264,27 @@ pub(crate) fn create_borrow(
     reader_id: &str,
     book_id: &str,
     remark: &str,
-) -> Result<(), String> {
+) -> LibResult<()> {
     if !valid_id(reader_id) || !valid_id(book_id) {
-        return Err("读者 ID 或书籍 ID 格式错误".to_string());
+        return Err(LibError::invalid_input("读者 ID 或书籍 ID 格式错误"));
     }
-    let mut conn = open_conn(path).map_err(db_err)?;
-    let tx = conn.transaction().map_err(db_err)?;
+    let mut conn = open_conn(path)?;
+    let tx = conn.transaction()?;
     let (max_borrow, borrow_days): (i64, i64) = tx
         .query_row(
             "SELECT max_borrow, borrow_days FROM readers WHERE id = ?1",
             params![reader_id],
             |row| Ok((row.get(0)?, row.get(1)?)),
         )
-        .optional()
-        .map_err(db_err)?
-        .ok_or_else(|| "读者不存在".to_string())?;
-    let active: i64 = tx
-        .query_row(
-            "SELECT COUNT(*) FROM borrows WHERE reader_id = ?1 AND returned = 0",
-            params![reader_id],
-            |row| row.get(0),
-        )
-        .map_err(db_err)?;
+        .optional()?
+        .ok_or_else(|| LibError::not_found("读者不存在"))?;
+    let active: i64 = tx.query_row(
+        "SELECT COUNT(*) FROM borrows WHERE reader_id = ?1 AND returned = 0",
+        params![reader_id],
+        |row| row.get(0),
+    )?;
     if active >= max_borrow {
-        return Err("借书数量已达上限，无法继续借阅".to_string());
+        return Err(LibError::rule_violation("借书数量已达上限，无法继续借阅"));
     }
     let status: Option<String> = tx
         .query_row(
@@ -304,14 +292,13 @@ pub(crate) fn create_borrow(
             params![book_id],
             |row| row.get(0),
         )
-        .optional()
-        .map_err(db_err)?;
+        .optional()?;
     match status.as_deref() {
         Some("available") => {}
-        Some("borrowed") => return Err("书籍已借出".to_string()),
-        Some("discarded") => return Err("书籍已报废，无法借阅".to_string()),
-        Some(_) => return Err("书籍状态异常，无法借阅".to_string()),
-        None => return Err("书籍不存在".to_string()),
+        Some("borrowed") => return Err(LibError::rule_violation("书籍已借出")),
+        Some("discarded") => return Err(LibError::rule_violation("书籍已报废，无法借阅")),
+        Some(_) => return Err(LibError::rule_violation("书籍状态异常，无法借阅")),
+        None => return Err(LibError::not_found("书籍不存在")),
     }
     let borrow_date = today();
     let due_date = borrow_date + Duration::days(borrow_days);
@@ -326,13 +313,12 @@ pub(crate) fn create_borrow(
             remark
         ],
     )
-    .map_err(db_err)?;
+    ?;
     tx.execute(
         "UPDATE books SET status = 'borrowed' WHERE id = ?1",
         params![book_id],
-    )
-    .map_err(db_err)?;
-    tx.commit().map_err(db_err)?;
+    )?;
+    tx.commit()?;
     Ok(())
 }
 
@@ -340,38 +326,35 @@ pub(crate) fn complete_return(
     path: &Path,
     actor_reader: Option<&str>,
     borrow_id: i64,
-) -> Result<(), String> {
-    let mut conn = open_conn(path).map_err(db_err)?;
-    let tx = conn.transaction().map_err(db_err)?;
+) -> LibResult<()> {
+    let mut conn = open_conn(path)?;
+    let tx = conn.transaction()?;
     let borrow: Option<(String, String, String, i64)> = tx
         .query_row(
             "SELECT reader_id, book_id, due_date, returned FROM borrows WHERE id = ?1",
             params![borrow_id],
             |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
         )
-        .optional()
-        .map_err(db_err)?;
+        .optional()?;
     let Some((reader_id, book_id, due_date_text, returned)) = borrow else {
-        return Err("借阅记录不存在".to_string());
+        return Err(LibError::not_found("借阅记录不存在"));
     };
     if let Some(actor_reader) = actor_reader
         && actor_reader != reader_id
     {
-        return Err("只能归还本人借阅的图书".to_string());
+        return Err(LibError::rule_violation("只能归还本人借阅的图书"));
     }
     if returned != 0 {
-        return Err("该图书已经归还".to_string());
+        return Err(LibError::rule_violation("该图书已经归还"));
     }
-    let due_date = parse_date(&due_date_text)?;
+    let due_date = parse_date(&due_date_text).map_err(LibError::invalid_input)?;
     let now = today();
     if now > due_date {
-        let existing: i64 = tx
-            .query_row(
-                "SELECT COUNT(*) FROM exceptions WHERE borrow_id = ?1 AND status != '已处理'",
-                params![borrow_id],
-                |row| row.get(0),
-            )
-            .map_err(db_err)?;
+        let existing: i64 = tx.query_row(
+            "SELECT COUNT(*) FROM exceptions WHERE borrow_id = ?1 AND status != '已处理'",
+            params![borrow_id],
+            |row| row.get(0),
+        )?;
         if existing == 0 {
             let overdue_days = (now - due_date).num_days().max(1);
             tx.execute(
@@ -386,10 +369,12 @@ pub(crate) fn complete_return(
                     format!("逾期 {overdue_days} 天，按 1 元/天生成赔偿")
                 ],
             )
-            .map_err(db_err)?;
+            ?;
         }
-        tx.commit().map_err(db_err)?;
-        return Err("图书已超期，已生成待处理异常记录，需管理员处理后完成归还".to_string());
+        tx.commit()?;
+        return Err(LibError::rule_violation(
+            "图书已超期，已生成待处理异常记录，需管理员处理后完成归还",
+        ));
     }
     finish_return_in_transaction(
         &tx,
@@ -399,7 +384,7 @@ pub(crate) fn complete_return(
         &due_date_text,
         "正常归还",
     )?;
-    tx.commit().map_err(db_err)?;
+    tx.commit()?;
     Ok(())
 }
 
@@ -410,7 +395,7 @@ fn finish_return_in_transaction(
     book_id: &str,
     due_date: &str,
     remark: &str,
-) -> Result<(), String> {
+) -> LibResult<()> {
     tx.execute(
         "INSERT INTO returns (reader_id, book_id, borrow_id, return_date, due_date, remark)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
@@ -422,18 +407,15 @@ fn finish_return_in_transaction(
             due_date,
             remark
         ],
-    )
-    .map_err(db_err)?;
+    )?;
     tx.execute(
         "UPDATE borrows SET returned = 1 WHERE id = ?1",
         params![borrow_id],
-    )
-    .map_err(db_err)?;
+    )?;
     tx.execute(
         "UPDATE books SET status = 'available' WHERE id = ?1 AND status != 'discarded'",
         params![book_id],
-    )
-    .map_err(db_err)?;
+    )?;
     Ok(())
 }
 
@@ -441,9 +423,9 @@ pub(crate) fn renew_borrow(
     path: &Path,
     actor_reader: Option<&str>,
     borrow_id: i64,
-) -> Result<(), String> {
-    let mut conn = open_conn(path).map_err(db_err)?;
-    let tx = conn.transaction().map_err(db_err)?;
+) -> LibResult<()> {
+    let mut conn = open_conn(path)?;
+    let tx = conn.transaction()?;
     let borrow: Option<(String, String, i64, i64)> = tx
         .query_row(
             "SELECT br.reader_id, br.due_date, br.returned, br.renew_count
@@ -451,79 +433,71 @@ pub(crate) fn renew_borrow(
             params![borrow_id],
             |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
         )
-        .optional()
-        .map_err(db_err)?;
+        .optional()?;
     let Some((reader_id, due_date_text, returned, renew_count)) = borrow else {
-        return Err("借阅记录不存在".to_string());
+        return Err(LibError::not_found("借阅记录不存在"));
     };
     if let Some(actor_reader) = actor_reader
         && actor_reader != reader_id
     {
-        return Err("只能续借本人借阅的图书".to_string());
+        return Err(LibError::rule_violation("只能续借本人借阅的图书"));
     }
     if returned != 0 {
-        return Err("已归还图书不能续借".to_string());
+        return Err(LibError::rule_violation("已归还图书不能续借"));
     }
     if renew_count >= 2 {
-        return Err("单本图书续借次数已达上限".to_string());
+        return Err(LibError::rule_violation("单本图书续借次数已达上限"));
     }
-    let due_date = parse_date(&due_date_text)?;
+    let due_date = parse_date(&due_date_text).map_err(LibError::invalid_input)?;
     if today() > due_date {
-        return Err("书籍已超期，请先办理赔偿手续".to_string());
+        return Err(LibError::rule_violation("书籍已超期，请先办理赔偿手续"));
     }
-    let borrow_days: i64 = tx
-        .query_row(
-            "SELECT borrow_days FROM readers WHERE id = ?1",
-            params![reader_id],
-            |row| row.get(0),
-        )
-        .map_err(db_err)?;
+    let borrow_days: i64 = tx.query_row(
+        "SELECT borrow_days FROM readers WHERE id = ?1",
+        params![reader_id],
+        |row| row.get(0),
+    )?;
     let new_due = due_date + Duration::days(borrow_days);
     tx.execute(
         "UPDATE borrows SET due_date = ?1, renew_count = renew_count + 1,
          remark = TRIM(remark || ' 续借至' || ?1) WHERE id = ?2",
         params![new_due.to_string(), borrow_id],
-    )
-    .map_err(db_err)?;
-    tx.commit().map_err(db_err)?;
+    )?;
+    tx.commit()?;
     Ok(())
 }
 
-pub(crate) fn resolve_exception(path: &Path, exception_id: i64) -> Result<(), String> {
-    let mut conn = open_conn(path).map_err(db_err)?;
-    let tx = conn.transaction().map_err(db_err)?;
+pub(crate) fn resolve_exception(path: &Path, exception_id: i64) -> LibResult<()> {
+    let mut conn = open_conn(path)?;
+    let tx = conn.transaction()?;
     let item: Option<(String, String, Option<i64>, String)> = tx
         .query_row(
             "SELECT exception_type, book_id, borrow_id, status FROM exceptions WHERE id = ?1",
             params![exception_id],
             |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
         )
-        .optional()
-        .map_err(db_err)?;
+        .optional()?;
     let Some((exception_type, book_id, borrow_id, status)) = item else {
-        return Err("异常记录不存在".to_string());
+        return Err(LibError::not_found("异常记录不存在"));
     };
     if status == "已处理" {
-        return Err("异常记录已经处理".to_string());
+        return Err(LibError::rule_violation("异常记录已经处理"));
     }
     tx.execute(
         "UPDATE exceptions SET status = '已处理', process_date = ?1 WHERE id = ?2",
         params![today().to_string(), exception_id],
-    )
-    .map_err(db_err)?;
+    )?;
 
     if exception_type.contains("丢失") {
         tx.execute(
             "UPDATE books SET status = 'discarded' WHERE id = ?1",
             params![book_id],
-        )
-        .map_err(db_err)?;
+        )?;
         if let Some(borrow_id) = borrow_id {
             tx.execute(
                 "UPDATE borrows SET returned = 1 WHERE id = ?1 AND returned = 0",
                 params![borrow_id],
-            )
-            .map_err(db_err)?;
+            )?;
         }
     } else if let Some(borrow_id) = borrow_id {
         let active: Option<(String, String, String)> = tx
@@ -532,8 +506,7 @@ pub(crate) fn resolve_exception(path: &Path, exception_id: i64) -> Result<(), St
                 params![borrow_id],
                 |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
             )
-            .optional()
-            .map_err(db_err)?;
+            .optional()?;
         if let Some((reader_id, book_id, due_date)) = active {
             finish_return_in_transaction(
                 &tx,
@@ -548,66 +521,59 @@ pub(crate) fn resolve_exception(path: &Path, exception_id: i64) -> Result<(), St
         tx.execute(
             "UPDATE books SET status = 'available' WHERE id = ?1 AND status = 'borrowed'",
             params![book_id],
-        )
-        .map_err(db_err)?;
+        )?;
     }
-    tx.commit().map_err(db_err)?;
+    tx.commit()?;
     Ok(())
 }
 
-pub(crate) fn delete_reader_if_clear(path: &Path, reader_id: &str) -> Result<(), String> {
-    let mut conn = open_conn(path).map_err(db_err)?;
-    let tx = conn.transaction().map_err(db_err)?;
-    let active: i64 = tx
-        .query_row(
-            "SELECT COUNT(*) FROM borrows WHERE reader_id = ?1 AND returned = 0",
-            params![reader_id],
-            |row| row.get(0),
-        )
-        .map_err(db_err)?;
+pub(crate) fn delete_reader_if_clear(path: &Path, reader_id: &str) -> LibResult<()> {
+    let mut conn = open_conn(path)?;
+    let tx = conn.transaction()?;
+    let active: i64 = tx.query_row(
+        "SELECT COUNT(*) FROM borrows WHERE reader_id = ?1 AND returned = 0",
+        params![reader_id],
+        |row| row.get(0),
+    )?;
     if active > 0 {
-        return Err("尚有未归还图书，无法注销或删除读者".to_string());
+        return Err(LibError::rule_violation(
+            "尚有未归还图书，无法注销或删除读者",
+        ));
     }
-    let unpaid: i64 = tx
-        .query_row(
-            "SELECT COUNT(*) FROM exceptions WHERE reader_id = ?1 AND status != '已处理'",
-            params![reader_id],
-            |row| row.get(0),
-        )
-        .map_err(db_err)?;
+    let unpaid: i64 = tx.query_row(
+        "SELECT COUNT(*) FROM exceptions WHERE reader_id = ?1 AND status != '已处理'",
+        params![reader_id],
+        |row| row.get(0),
+    )?;
     if unpaid > 0 {
-        return Err("尚有未处理赔偿记录，无法注销或删除读者".to_string());
+        return Err(LibError::rule_violation(
+            "尚有未处理赔偿记录，无法注销或删除读者",
+        ));
     }
-    let changed = tx
-        .execute("DELETE FROM readers WHERE id = ?1", params![reader_id])
-        .map_err(db_err)?;
+    let changed = tx.execute("DELETE FROM readers WHERE id = ?1", params![reader_id])?;
     if changed == 0 {
-        return Err("未找到该读者".to_string());
+        return Err(LibError::not_found("未找到该读者"));
     }
-    tx.commit().map_err(db_err)?;
+    tx.commit()?;
     Ok(())
 }
 
-pub(crate) fn delete_book_if_available(path: &Path, book_id: &str) -> Result<(), String> {
-    let mut conn = open_conn(path).map_err(db_err)?;
-    let tx = conn.transaction().map_err(db_err)?;
-    let active: i64 = tx
-        .query_row(
-            "SELECT COUNT(*) FROM borrows WHERE book_id = ?1 AND returned = 0",
-            params![book_id],
-            |row| row.get(0),
-        )
-        .map_err(db_err)?;
+pub(crate) fn delete_book_if_available(path: &Path, book_id: &str) -> LibResult<()> {
+    let mut conn = open_conn(path)?;
+    let tx = conn.transaction()?;
+    let active: i64 = tx.query_row(
+        "SELECT COUNT(*) FROM borrows WHERE book_id = ?1 AND returned = 0",
+        params![book_id],
+        |row| row.get(0),
+    )?;
     if active > 0 {
-        return Err("书籍当前被借阅，无法删除".to_string());
+        return Err(LibError::rule_violation("书籍当前被借阅，无法删除"));
     }
-    let changed = tx
-        .execute("DELETE FROM books WHERE id = ?1", params![book_id])
-        .map_err(db_err)?;
+    let changed = tx.execute("DELETE FROM books WHERE id = ?1", params![book_id])?;
     if changed == 0 {
-        return Err("未找到该图书".to_string());
+        return Err(LibError::not_found("未找到该图书"));
     }
-    tx.commit().map_err(db_err)?;
+    tx.commit()?;
     Ok(())
 }
 
@@ -619,7 +585,10 @@ mod tests {
     use uuid::Uuid;
 
     use super::*;
-    use crate::db::{init_database, open_conn};
+    use crate::{
+        db::{init_database, open_conn},
+        errors::LibError,
+    };
 
     struct TestDb {
         path: PathBuf,
@@ -709,7 +678,10 @@ mod tests {
         let err = delete_book_if_available(db.path(), book_id)
             .expect_err("active borrowed book should not be deleted");
 
-        assert!(err.contains("当前被借阅"));
+        assert!(matches!(
+            err,
+            LibError::RuleViolation(message) if message.contains("当前被借阅")
+        ));
     }
 
     #[test]
@@ -888,10 +860,16 @@ mod tests {
         drop(conn);
 
         let err = delete_admin(db.path(), "A001", "A900").expect_err("default admin is protected");
-        assert!(err.contains("默认最高权限管理员"));
+        assert!(matches!(
+            err,
+            LibError::RuleViolation(message) if message.contains("默认最高权限管理员")
+        ));
 
         let err = delete_admin(db.path(), "A900", "A900").expect_err("current admin is protected");
-        assert!(err.contains("不能删除当前登录账号"));
+        assert!(matches!(
+            err,
+            LibError::RuleViolation(message) if message.contains("不能删除当前登录账号")
+        ));
 
         delete_admin(db.path(), "A900", "A001").expect("non-current admin should be deleted");
         let conn = open_conn(db.path()).expect("database should open");
@@ -959,5 +937,40 @@ mod tests {
         assert_eq!(book_id, "B0038");
         assert_eq!(borrow_id, None);
         assert_eq!(remark, "封面损坏");
+    }
+
+    #[test]
+    fn service_errors_are_typed() {
+        let db = TestDb::new();
+
+        let err = create_book(
+            db.path(),
+            BookInput {
+                id: "坏ID",
+                title: "无效图书",
+                category: "测试",
+                keywords: "invalid",
+                status: None,
+                remark: "",
+            },
+        )
+        .expect_err("invalid id should be rejected before database write");
+        assert!(matches!(err, LibError::InvalidInput(_)));
+
+        let err = update_reader(
+            db.path(),
+            ReaderInput {
+                id: "R999",
+                name: "不存在读者",
+                password: None,
+                gender: "其他",
+                profession: "测试员",
+                max_borrow: 5,
+                borrow_days: 30,
+                remark: "",
+            },
+        )
+        .expect_err("missing reader should report not found");
+        assert!(matches!(err, LibError::NotFound(_)));
     }
 }
