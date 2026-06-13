@@ -1,0 +1,63 @@
+Part 3: Ownership short-answer exercises
+
+For each example, answer:
+1. Does this code compile?
+2. Why or why not?
+3. If it does not compile, what could be changed to make it compile?
+
+Example 1
+---------
+
+Code:
+
+fn main() {
+    let mut s = String::from("hello");
+    let ref1 = &s;
+    let ref2 = &ref1;
+    let ref3 = &ref2;
+    s = String::from("goodbye");
+    println!("{}", ref3.to_uppercase());
+}
+
+My answer:
+NO.
+REF3IS REF FROM S,
+BUT S CHANGE ITS VALUE WHILE BEING BORR;
+
+
+Example 2
+---------
+
+Code:
+
+fn drip_drop() -> &String {
+    let s = String::from("hello world!");
+    return &s;
+}
+
+My answer:
+NO. S IS LOCAL VARIABLE, AFTER FN S IS FREED, SO WE CANT RETURN A REF.
+SHALL BE 
+```
+fn drip_drop()-> String{
+    String::from("hello world")
+}
+```
+
+Example 3
+---------
+
+Code:
+
+fn main() {
+    let s1 = String::from("hello");
+    let mut v = Vec::new();
+    v.push(s1);
+    let s2: String = v[0];
+    println!("{}", s2);
+}
+
+My answer:
+.push() method make ownership change.
+rust donot allow index move none copy dtype in vector directly.
+shall be let s2:&str = &v[0];

@@ -1,0 +1,6 @@
+[package]
+name = "part-2-shopping-list"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
